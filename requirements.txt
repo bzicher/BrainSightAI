@@ -1,3 +1,6 @@
 numpy
 matplotlib
-pytorch
+torch
+mat73
+ipykernel
+scikit-learn

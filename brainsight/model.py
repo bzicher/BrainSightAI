@@ -1,38 +1,47 @@
-import numpy as np
 import torch.nn as nn
 
+
 class CNNClassifier(nn.Module):
-    def __init__(self, in_channels):
-        super(CNNClassifier, self).__init__()
-        # Define convolutional layers
-        self.conv1 = nn.Conv1d(in_channels=in_channels, out_channels=16, kernel_size=3, stride=1, padding=1)
-        self.conv2 = nn.Conv1d(in_channels=16, out_channels=32, kernel_size=3, stride=1, padding=1)
-        
-        # Define pooling layer
-        self.pool = nn.MaxPool1d(kernel_size=2, stride=2)
-        
-        # Define fully connected layers
-        self.fc1 = nn.Linear(32 * 25, 128)
-        self.fc2 = nn.Linear(128, 2)
-        
-        # Define activation functions
+    def __init__(self, n_channels, window_size):
+        super().__init__()
+        self.conv1 = nn.Conv2d(in_channels=1, out_channels=32,
+                               kernel_size=(3, 5), stride=1, padding=1)
+        H = (n_channels + 1 + 1 - 3)/1 + 1
+        W = (window_size + 1 + 1 - 5)/1 + 1
         self.relu = nn.ReLU()
-        self.softmax = nn.Softmax(dim=1)
-    
+        self.pool1 = nn.MaxPool2d(kernel_size=(1, 2), stride=(1, 2))
+        W = W/2
+        self.conv2 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=(3, 3),
+                               stride=2, padding=1)
+        H = int((H + 1 + 1 - 3)/2 + 1)
+        W = (W + 1 + 1 - 3)/2 + 1
+        self.pool2 = nn.MaxPool2d(kernel_size=(1, 3), stride=(1, 3))
+        W = int(W/3)
+        self.conv3 = nn.Conv2d(in_channels=64, out_channels=32, kernel_size=(3, 3),
+                               stride=2, padding=1)
+        H = int((H + 1 + 1 - 3)/2 + 1)
+        W = (W + 1 + 1 - 3)/2 + 1
+        self.pool3 = nn.MaxPool2d(kernel_size=(1, 3), stride=(1, 3))
+        W = int(W/3)
+
+        self.fc1 = nn.Linear(int(32*H*W), 512)
+        self.fc2 = nn.Linear(512, 2)
+        self.logsoftmax = nn.LogSoftmax(dim=1)
+
     def forward(self, x):
-        # Pass input through convolutional layers
-        x = self.relu(self.conv1(x))
-        x = self.pool(x)
-        x = self.relu(self.conv2(x))
-        x = self.pool(x)
-        
-        # Flatten output of convolutional layers
-        x = x.view(-1, 32 * 25)
-        
-        # Pass output through fully connected layers
-        x = self.relu(self.fc1(x))
+        x = x.unsqueeze(1)
+        x = self.conv1(x)
+        x = self.relu(x)
+        x = self.pool1(x)
+        x = self.conv2(x)
+        x = self.relu(x)
+        x = self.pool2(x)
+        x = self.conv3(x)
+        x = self.relu(x)
+        x = self.pool3(x)
+        x = x.view(x.size(0), -1)
+        x = self.fc1(x)
+        x = self.relu(x)
         x = self.fc2(x)
-        
-        # Apply softmax activation function for binary classification
-        x = self.softmax(x)
+        x = self.logsoftmax(x)
         return x
