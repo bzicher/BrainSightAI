@@ -1,20 +1,22 @@
 import numpy as np
-# import matplotlib.pyplot as plt
 import torch.nn as nn
 from torch.utils.data import DataLoader
 import torch
 from sklearn.metrics import accuracy_score
 from brainsight.dataset import CustomDataset, sliding_window
-from brainsight.model import CNNClassifier
+from brainsight.model import GRUClassifier
 
 
 def create_data():
+    """ Create random dataset for testing code """
+
     window_size = 1024
     step_size = 128
 
     # create dataset
     raw_signals = np.random.rand(256, 2048, 41)  # channels x samples x trials
 
+    # create windows
     signals = np.zeros((1, 256, window_size))
     for trial in range(np.size(raw_signals, 2)):
         signals = np.append(signals, sliding_window(raw_signals[:, :, trial], window_size, step_size), 0)
@@ -38,19 +40,17 @@ if __name__ == "__main__":
     train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
 
-    model = CNNClassifier(256, window_size)
+    model = GRUClassifier(256, 100, 5, window_size, 0.1)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    criterion = nn.NLLLoss()
+    criterion = nn.BCEWithLogitsLoss()
 
     for epoch in range(num_epochs):
         train_loss = 0.0
         model.train()
         for train_signals, train_labels in train_loader:
             # signals is batch_size (number of samples in 1 batch) x channels x window size
-            train_labels = train_labels.type(torch.LongTensor)
             optimizer.zero_grad()
             outputs = model(train_signals)
-            _, predicted = torch.max(outputs, dim=1)
             loss = criterion(outputs, train_labels)
             loss.backward()
             optimizer.step()
@@ -64,11 +64,11 @@ if __name__ == "__main__":
             test_loss = 0.0
             true_labels = np.empty((1))
             predicted_labels = np.empty((1))
+            sigmoid = nn.Sigmoid()
 
             for test_signals, test_labels in train_loader:
-                test_labels = test_labels.type(torch.LongTensor)
                 outputs = model(test_signals)
-                output_labels = np.argmax(outputs, axis=1)
+                output_labels = torch.round(sigmoid(outputs))
 
                 true_labels = np.append(true_labels, test_labels.numpy(), 0)
                 predicted_labels = np.append(predicted_labels, output_labels.numpy(), 0)
